@@ -371,7 +371,7 @@ jobs:
           # would defeat the RELEASE_PAT hands-off path. Token comes from the
           # job-level env (never interpolated inline, never echoed).
           git remote set-url --push origin \
-            "https://x-access-token:${RELEASE_PAT_OR_TOKEN}@github.com/masdevid/mt5-quant.git"
+            "https://x-access-token:${RELEASE_PAT_OR_TOKEN}@github.com/MT5-Automation-Labs/mt5-backtesting-lab.git"
           # Drop any stale branch/PR left over from a previous attempt at
           # this release so every run starts from a clean slate
           git push origin --delete "$BRANCH" 2>/dev/null || true
@@ -569,7 +569,7 @@ jobs:
           echo "╚══════════════════════════════════════════════════════════════╝"
           echo ""
           echo "GitHub Release:"
-          echo "  https://github.com/masdevid/mt5-quant/releases/tag/${RELEASE_TAG}"
+          echo "  https://github.com/MT5-Automation-Labs/mt5-backtesting-lab/releases/tag/${RELEASE_TAG}"
           echo ""
           echo "MCP Registry: io.github.masdevid/mt5-quant"
           echo ""

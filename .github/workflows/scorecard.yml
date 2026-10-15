@@ -47,7 +47,7 @@ jobs:
           import json
           import urllib.request
 
-          url = "https://api.scorecard.dev/projects/github.com/masdevid/mt5-quant"
+          url = "https://api.scorecard.dev/projects/github.com/MT5-Automation-Labs/mt5-backtesting-lab"
           with urllib.request.urlopen(url) as resp:
               data = json.load(resp)
 

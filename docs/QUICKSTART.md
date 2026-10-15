@@ -6,7 +6,7 @@ Platform-specific install steps are in [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 Ask your LLM platform to install MT5-Quant:
 
-> "Please install mt5-quant from https://github.com/masdevid/mt5-quant. Download the pre-built binary, run `scripts/setup.sh` to auto-detect Wine/MT5 paths, and register the MCP server."
+> "Please install mt5-quant from https://github.com/MT5-Automation-Labs/mt5-backtesting-lab. Download the pre-built binary, run `scripts/setup.sh` to auto-detect Wine/MT5 paths, and register the MCP server."
 
 The LLM will handle:
 1. Download binary or `cargo build --release`

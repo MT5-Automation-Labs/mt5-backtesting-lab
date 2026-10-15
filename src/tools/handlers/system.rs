@@ -43,7 +43,7 @@ pub(super) async fn fetch_latest_version() -> Option<String> {
             "Accept: application/vnd.github.v3+json",
             "-H",
             "User-Agent: mt5-quant-updater",
-            "https://api.github.com/repos/masdevid/mt5-quant/releases/latest",
+            "https://api.github.com/repos/MT5-Automation-Labs/mt5-backtesting-lab/releases/latest",
         ])
         .output()
         .await
@@ -129,7 +129,7 @@ pub async fn handle_update(_config: &Config) -> Result<Value> {
     }
 
     let url = format!(
-        "https://github.com/masdevid/mt5-quant/releases/download/v{latest}/mcp-mt5-quant-{tag}.tar.gz"
+        "https://github.com/MT5-Automation-Labs/mt5-backtesting-lab/releases/download/v{latest}/mcp-mt5-quant-{tag}.tar.gz"
     );
 
     // Download tarball to a temp file

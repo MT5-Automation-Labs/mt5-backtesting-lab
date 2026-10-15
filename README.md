@@ -1,6 +1,6 @@
 # mt5-backtesting-lab
 
-[![Rust CI](https://github.com/masdevid/mt5-quant/actions/workflows/rust.yml/badge.svg)](https://github.com/masdevid/mt5-quant/actions/workflows/rust.yml)
+[![Rust CI](https://github.com/MT5-Automation-Labs/mt5-backtesting-lab/actions/workflows/rust.yml/badge.svg)](https://github.com/MT5-Automation-Labs/mt5-backtesting-lab/actions/workflows/rust.yml)
 [![crates.io](https://img.shields.io/crates/v/mt5-quant.svg)](https://crates.io/crates/mt5-quant)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -31,11 +31,11 @@ From a release archive:
 
 ```bash
 # macOS Apple Silicon
-curl -LO https://github.com/masdevid/mt5-quant/releases/latest/download/mcp-mt5-quant-macos-arm64.tar.gz
+curl -LO https://github.com/MT5-Automation-Labs/mt5-backtesting-lab/releases/latest/download/mcp-mt5-quant-macos-arm64.tar.gz
 tar xzf mcp-mt5-quant-macos-arm64.tar.gz
 
 # Linux x64
-curl -LO https://github.com/masdevid/mt5-quant/releases/latest/download/mcp-mt5-quant-linux-x64.tar.gz
+curl -LO https://github.com/MT5-Automation-Labs/mt5-backtesting-lab/releases/latest/download/mcp-mt5-quant-linux-x64.tar.gz
 tar xzf mcp-mt5-quant-linux-x64.tar.gz
 ```
 

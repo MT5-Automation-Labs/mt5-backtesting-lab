@@ -20,10 +20,10 @@ We encourage responsible disclosure. If you discover a vulnerability, please
 report it through **one** of the following channels (in order of preference):
 
 1. **GitHub Security Advisories (recommended).** Open a private security
-   advisory at <https://github.com/masdevid/mt5-quant/security/advisories/new>.
+   advisory at <https://github.com/MT5-Automation-Labs/mt5-backtesting-lab/security/advisories/new>.
    This keeps the details confidential while we prepare a fix.
 2. **Public GitHub Issue.** If you prefer, open a normal issue at
-   <https://github.com/masdevid/mt5-quant/issues>. Public reports are accepted;
+   <https://github.com/MT5-Automation-Labs/mt5-backtesting-lab/issues>. Public reports are accepted;
    please avoid posting working exploits in the open issue body — link to a
    private gist or email the maintainer instead.
 

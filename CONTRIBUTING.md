@@ -36,5 +36,5 @@ contribute and what we expect from contributions.
 ## Issue tracker
 
 - Bugs and enhancement requests are tracked on the project's
-  [GitHub Issues](https://github.com/masdevid/mt5-quant/issues), with
+  [GitHub Issues](https://github.com/MT5-Automation-Labs/mt5-backtesting-lab/issues), with
   bug-report and feature-request templates under `.github/ISSUE_TEMPLATE/`.

@@ -556,7 +556,7 @@ _write_claude_template() {
 
 ## MT5 MCP Integration
 
-This project uses [mt5-quant](https://github.com/masdevid/mt5-quant) for backtesting and
+This project uses [mt5-quant](https://github.com/MT5-Automation-Labs/mt5-backtesting-lab) for backtesting and
 optimization via Claude Code MCP tools.
 
 Available MCP tools: `run_backtest`, `run_optimization`, `get_results`,
