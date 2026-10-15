@@ -1,0 +1,587 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.32.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  # ── Build binaries ───────────────────────────────────────────────────────────
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: macos-cargo-
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Package binary
+        run: |
+          mkdir -p dist/mcp-mt5-quant-macos
+          cp target/release/mt5-quant dist/mcp-mt5-quant-macos/
+          cp -r config dist/mcp-mt5-quant-macos/
+          cp README.md dist/mcp-mt5-quant-macos/
+          cp -r docs dist/mcp-mt5-quant-macos/
+          cd dist
+          tar -czf mcp-mt5-quant-macos-arm64.tar.gz mcp-mt5-quant-macos
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: macos-binary
+          path: dist/mcp-mt5-quant-macos-arm64.tar.gz
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: linux-cargo-
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Package binary
+        run: |
+          mkdir -p dist/mcp-mt5-quant-linux
+          cp target/release/mt5-quant dist/mcp-mt5-quant-linux/
+          cp -r config dist/mcp-mt5-quant-linux/
+          cp README.md dist/mcp-mt5-quant-linux/
+          cp -r docs dist/mcp-mt5-quant-linux/
+          cd dist
+          tar -czf mcp-mt5-quant-linux-x64.tar.gz mcp-mt5-quant-linux
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-binary
+          path: dist/mcp-mt5-quant-linux-x64.tar.gz
+
+  # ── Cargo Publish ────────────────────────────────────────────────────────────
+
+  cargo-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # Required for crates.io Trusted Publishing (OIDC)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-publish-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-publish-
+
+      - name: Get crates.io authentication token
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+        id: auth
+
+      - name: Publish to crates.io
+        run: cargo publish --no-verify --allow-dirty
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+  # ── GitHub Release ───────────────────────────────────────────────────────────
+
+  release:
+    needs: [build-macos, build-linux, cargo-publish]
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+      # secrets context is NOT available in step-level if: expressions —
+      # referencing it there makes the whole workflow fail validation
+      # (startup-failure runs on every push). Route the check through a
+      # job-level env var instead: env IS readable in if:.
+      HAS_GPG_SECRETS: ${{ secrets.GPG_PRIVATE_KEY != '' && secrets.GPG_PASSPHRASE != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: macos-binary
+          path: dist
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-binary
+          path: dist
+
+      # ── GPG signing of release artifacts (delivery_unsigned) ────────────────
+      # Guarded: only runs when BOTH signing secrets are configured. When they
+      # are absent the release still ships (unsigned) instead of failing — so
+      # forks/contributors without the secrets are not blocked. When present,
+      # each binary gets a detached ASCII-armored signature and the public key
+      # (docs/signing-key.asc) is attached to the release for verification.
+      - name: Import GPG key and sign artifacts
+        if: env.HAS_GPG_SECRETS == 'true'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEYID: EF1CA6A2E2D0CEFF61DC7F080256A0C36A6D5E72
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          for f in dist/mcp-mt5-quant-macos-arm64.tar.gz \
+                   dist/mcp-mt5-quant-linux-x64.tar.gz; do
+            gpg --batch --yes --pinentry-mode loopback \
+                --passphrase "$GPG_PASSPHRASE" \
+                --detach-sign --armor -u "$GPG_KEYID" "$f"
+          done
+
+      - name: Build release asset list
+        id: assets
+        run: |
+          {
+            echo "files<<EOF"
+            echo "dist/mcp-mt5-quant-macos-arm64.tar.gz"
+            echo "dist/mcp-mt5-quant-linux-x64.tar.gz"
+            echo "docs/signing-key.asc"
+            if [ -f dist/mcp-mt5-quant-macos-arm64.tar.gz.asc ] && \
+               [ -f dist/mcp-mt5-quant-linux-x64.tar.gz.asc ]; then
+              echo "dist/mcp-mt5-quant-macos-arm64.tar.gz.asc"
+              echo "dist/mcp-mt5-quant-linux-x64.tar.gz.asc"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_TAG }}
+          files: ${{ steps.assets.outputs.files }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── MCP Package ──────────────────────────────────────────────────────────────
+  # Builds the installable MCP package (binary + config + docs),
+  # computes its SHA256, and uploads to the release. Also attests the FINAL
+  # release bytes — the macOS tarball is re-packaged here (server.json added),
+  # so attesting in the build jobs would cover digests that never ship.
+
+  build-mcp-package:
+    needs: release
+    runs-on: macos-latest
+    permissions:
+      contents: write       # Attach the package to the GitHub Release
+      id-token: write       # Required for build provenance attestation (OIDC)
+      attestations: write   # Required to publish the attestation
+    outputs:
+      sha256: ${{ steps.compute-sha256.outputs.sha256 }}
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download macOS binary
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: macos-binary
+          path: dist
+
+      - name: Download Linux binary
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-binary
+          path: dist
+
+      - name: Build MCP package
+        run: |
+          mkdir -p mcp-package/mcp-server/bin
+          cd dist && tar -xzf mcp-mt5-quant-macos-arm64.tar.gz && cd ..
+          cp dist/mcp-mt5-quant-macos/mt5-quant mcp-package/mcp-server/bin/
+          cp -r config mcp-package/
+          cp -r docs mcp-package/
+          cp README.md mcp-package/
+          cp server.json mcp-package/
+          cd mcp-package && tar -czf ../mcp-mt5-quant-macos-arm64.tar.gz . && cd ..
+
+      # Attest the exact bytes attached to the Release: the re-packaged macOS
+      # tarball at the repo root and the pass-through Linux tarball from the
+      # artifact — so attested digests match the published assets.
+      - name: Generate build provenance attestation (macOS)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: mcp-mt5-quant-macos-arm64.tar.gz
+
+      - name: Generate build provenance attestation (Linux)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/mcp-mt5-quant-linux-x64.tar.gz
+
+      - name: Compute SHA256
+        id: compute-sha256
+        run: |
+          SHA256=$(shasum -a 256 mcp-mt5-quant-macos-arm64.tar.gz | awk '{print $1}')
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "MCP Package SHA256: $SHA256"
+
+      - name: Upload MCP package to release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: mcp-mt5-quant-macos-arm64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload MCP package artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mcp-package
+          path: mcp-mt5-quant-macos-arm64.tar.gz
+
+  # ── Update server.json SHA256 ────────────────────────────────────────────────
+  # Updates server.json on master via an auto-merged PR instead of a direct
+  # push: the protect-master ruleset requires build/lint/cargo-deny status
+  # checks, which github-actions[bot] cannot bypass on a direct push. The PR
+  # runs those checks legitimately, then auto-merges once green. This job
+  # blocks until the merge lands so mcp-publish reads the patched server.json.
+  #
+  # Bot identity (RELEASE_PAT): when the RELEASE_PAT secret exists (a
+  # fine-grained personal access token owned by masdevid with Contents+PR
+  # write), the branch push and the PR are attributed to masdevid instead of
+  # github-actions[bot]. GitHub only holds pull_request workflows for manual
+  # approval when the PR author is an OUTSIDE contributor — same-owner PRs
+  # run their checks immediately, making releases fully hands-off. Without
+  # the secret everything falls back to GITHUB_TOKEN: the release still
+  # completes, but the server.json PR's required status checks sit in
+  # "action_required" until manually approved once per release.
+
+  update-server-json:
+    needs: build-mcp-package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # push the ci/* release branch
+      pull-requests: write   # create the PR and enable auto-merge
+    env:
+      # Single bot identity used for BOTH the git push and the gh pr calls —
+      # GitHub ties workflow-trigger approval to the PR-authoring identity,
+      # so push and PR must match. Resolves to RELEASE_PAT when configured,
+      # otherwise the default GITHUB_TOKEN, so nothing breaks before the
+      # secret is added. Declared here instead of interpolated inline so the
+      # token never lands on a command line; GitHub masks it in logs anyway.
+      RELEASE_PAT_OR_TOKEN: ${{ secrets.RELEASE_PAT || github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: master
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Patch server.json
+        env:
+          PKG_SHA256: ${{ needs.build-mcp-package.outputs.sha256 }}
+          RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          VERSION="$VERSION" PKG_SHA256="$PKG_SHA256" python3 - <<'PYEOF'
+          import json, os, re
+
+          sha256  = os.environ['PKG_SHA256']
+          version = os.environ['VERSION']
+
+          with open('server.json') as f:
+              data = json.load(f)
+
+          data['version'] = version
+          for pkg in data.get('packages', []):
+              pkg['version']    = version
+              pkg['fileSha256'] = sha256
+              if 'identifier' in pkg:
+                  pkg['identifier'] = re.sub(
+                      r'/v[0-9]+\.[0-9]+\.[0-9]+/',
+                      f'/v{version}/',
+                      pkg['identifier']
+                  )
+
+          with open('server.json', 'w') as f:
+              json.dump(data, f, indent=2)
+              f.write('\n')
+
+          print(f"Patched: version={version}, sha256={sha256[:16]}...")
+          PYEOF
+
+      - name: Commit server.json to release branch
+        id: commit
+        run: |
+          BRANCH="ci/server-json-sha-${VERSION}"
+          # Authenticate ALL pushes (stale-branch cleanup + branch upload)
+          # with the SAME identity that creates the PR below: GitHub ties
+          # workflow-trigger approval to the PR author, so a mismatch here
+          # would defeat the RELEASE_PAT hands-off path. Token comes from the
+          # job-level env (never interpolated inline, never echoed).
+          git remote set-url --push origin \
+            "https://x-access-token:${RELEASE_PAT_OR_TOKEN}@github.com/masdevid/mt5-quant.git"
+          # Drop any stale branch/PR left over from a previous attempt at
+          # this release so every run starts from a clean slate
+          git push origin --delete "$BRANCH" 2>/dev/null || true
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add server.json
+          if git diff --cached --quiet; then
+            echo "server.json unchanged — no commit needed"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            # Never add a CI-skip marker to this commit message: under the
+            # protect-master ruleset the server.json PR carries required
+            # status checks, and a CI-skip marker suppresses
+            # pull_request-triggered workflows, so those checks never report
+            # and auto-merge hangs until timeout. Omitting it is safe —
+            # release.yml triggers only on tags (no loop risk) and
+            # GITHUB_TOKEN-attributed merges never retrigger workflows.
+            git commit -m "ci: update server.json SHA256 for v${VERSION}"
+            git push origin "$BRANCH"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Committed server.json update to ${BRANCH}"
+          fi
+
+      - name: Create PR and enable auto-merge
+        if: steps.commit.outputs.changed == 'true'
+        run: |
+          BRANCH="ci/server-json-sha-${VERSION}"
+          # Same rule as above: no CI-skip marker in the title — GitHub
+          # honors markers on PR titles too, which would suppress the
+          # required checks.
+          GH_TOKEN="$RELEASE_PAT_OR_TOKEN" gh pr create \
+            --title "ci: update server.json SHA256 for v${VERSION}" \
+            --body "Automated MCP package hash update." \
+            --base master \
+            --head "$BRANCH"
+
+          GH_TOKEN="$RELEASE_PAT_OR_TOKEN" gh pr merge "$BRANCH" --auto --squash
+
+          # Block until required checks (build, lint, cargo-deny x4) finish
+          # and auto-merge completes — mcp-publish depends on this job and
+          # checks out master expecting the patched server.json
+          DEADLINE=$((SECONDS + 1800))
+          while (( SECONDS < DEADLINE )); do
+            STATE=$(GH_TOKEN="$RELEASE_PAT_OR_TOKEN" gh pr view "$BRANCH" --json state --jq .state)
+            case "$STATE" in
+              MERGED)
+                echo "server.json PR merged to master"
+                exit 0
+                ;;
+              CLOSED)
+                echo "::error::server.json PR was closed without merging" >&2
+                exit 1
+                ;;
+            esac
+            sleep 20
+          done
+          echo "::error::Timed out after 30m waiting for server.json PR auto-merge (required checks: build, lint, cargo-deny x4)" >&2
+          exit 1
+
+  # ── MCP Registry Publish ─────────────────────────────────────────────────────
+
+  mcp-publish:
+    needs: [build-mcp-package, update-server-json]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # Required for GitHub OIDC
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: master   # Pull master so server.json has the correct SHA256
+
+      - name: Download MCP package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: mcp-package
+          path: .
+
+      - name: Install mcp-publisher
+        id: install-publisher
+        env:
+          # Hash-pinned download (OpenSSF Scorecard Pinned-Dependencies):
+          # PUB_SHA256 is the mcp-publisher_linux_amd64.tar.gz entry from
+          # registry_1.8.1_checksums.txt shipped in the same release.
+          # Bump both values together when upgrading.
+          PUB_VERSION: v1.8.1
+          PUB_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+        run: |
+          URL="https://github.com/modelcontextprotocol/registry/releases/download/${PUB_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+
+          echo "Downloading: $URL"
+          if ! curl -fsSL -o "$RUNNER_TEMP/mcp-publisher.tar.gz" "$URL"; then
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+            echo "Download failed: $URL"
+            exit 0
+          fi
+
+          # Never execute unverified bytes: hard-fail the job on any digest
+          # mismatch (upstream re-release or tampering)
+          ACTUAL=$(sha256sum "$RUNNER_TEMP/mcp-publisher.tar.gz" | awk '{print $1}')
+          if [[ "$ACTUAL" != "$PUB_SHA256" ]]; then
+            echo "::error::SHA256 mismatch for mcp-publisher ${PUB_VERSION}: expected ${PUB_SHA256}, got ${ACTUAL}"
+            exit 1
+          fi
+          echo "SHA256 verified: $ACTUAL"
+
+          EXTRACT_DIR="$(mktemp -d)"
+          if ! tar -xzf "$RUNNER_TEMP/mcp-publisher.tar.gz" -C "$EXTRACT_DIR"; then
+            rm -rf "$EXTRACT_DIR" "$RUNNER_TEMP/mcp-publisher.tar.gz"
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+            echo "Extraction failed"
+            exit 0
+          fi
+
+          if [[ -f "$EXTRACT_DIR/mcp-publisher" ]]; then
+            chmod +x "$EXTRACT_DIR/mcp-publisher"
+            sudo mv "$EXTRACT_DIR/mcp-publisher" /usr/local/bin/mcp-publisher
+            echo "installed=true" >> "$GITHUB_OUTPUT"
+            echo "Installed: $(mcp-publisher --version 2>/dev/null || echo 'ok')"
+          else
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+            echo "Binary not found in archive"
+          fi
+          rm -rf "$EXTRACT_DIR" "$RUNNER_TEMP/mcp-publisher.tar.gz"
+
+      - name: Validate server.json before publish
+        id: validate
+        run: |
+          python3 - <<'PYEOF'
+          import json, sys
+
+          with open('server.json') as f:
+              data = json.load(f)
+
+          print(f"  name:    {data.get('name')}")
+          print(f"  version: {data.get('version')}")
+
+          ok = True
+          for pkg in data.get('packages', []):
+              sha = pkg.get('fileSha256', '')
+              ident = pkg.get('identifier', '')
+              print(f"  sha256:  {sha}")
+              print(f"  url:     {ident}")
+              if sha in ('', 'TBD_CI_WILL_UPDATE', 'TBD_UPDATED_BY_CI'):
+                  print('ERROR: fileSha256 is a placeholder — publish aborted')
+                  ok = False
+
+          sys.exit(0 if ok else 1)
+          PYEOF
+
+      - name: Publish to MCP Registry
+        if: steps.install-publisher.outputs.installed == 'true' && steps.validate.outcome == 'success'
+        run: |
+          echo "=== Authenticating with GitHub OIDC ==="
+          mcp-publisher login github-oidc || {
+            echo "OIDC login failed"
+            exit 1
+          }
+
+          echo "=== Publishing ==="
+          mcp-publisher publish && echo "✓ Published to MCP Registry" || {
+            echo ""
+            echo "══════════════════════════════════════════════════════════"
+            echo "  AUTOMATED MCP PUBLISH FAILED — manual steps:"
+            echo "══════════════════════════════════════════════════════════"
+            echo "  1. Download: https://github.com/modelcontextprotocol/registry/releases"
+            echo "  2. ./mcp-publisher login github"
+            echo "  3. ./mcp-publisher publish"
+            echo "  Web UI: https://registry.modelcontextprotocol.io"
+            echo "══════════════════════════════════════════════════════════"
+            exit 0   # Don't fail the workflow — release succeeded
+          }
+
+      - name: Skip notice
+        if: steps.install-publisher.outputs.installed != 'true'
+        run: |
+          echo "mcp-publisher not installed — skipping automated publish"
+          echo "Manual: https://registry.modelcontextprotocol.io"
+
+  # ── Release Summary ──────────────────────────────────────────────────────────
+
+  release-info:
+    needs: [mcp-publish]
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.version || github.ref_name }}
+    steps:
+      - name: Summary
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════════════════╗"
+          echo "║              Release ${RELEASE_TAG} complete!                "
+          echo "╚══════════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "GitHub Release:"
+          echo "  https://github.com/masdevid/mt5-quant/releases/tag/${RELEASE_TAG}"
+          echo ""
+          echo "MCP Registry: io.github.masdevid/mt5-quant"
+          echo ""
+          echo "── MCP Client Registration ──────────────────────────────────"
+          echo ""
+          echo "Claude Code:"
+          echo "  claude mcp add io.github.masdevid/mt5-quant -- ~/.local/bin/mt5-quant"
+          echo ""
+          echo "Windsurf  (~/.codeium/windsurf/mcp_config.json):"
+          echo '  {"mcpServers": {"io.github.masdevid/mt5-quant": {"command": "~/.local/bin/mt5-quant"}}}'
+          echo ""
+          echo "Cursor / VS Code  (~/.cursor/mcp.json):"
+          echo '  {"mcpServers": {"mt5-quant": {"command": "~/.local/bin/mt5-quant"}}}'
+          echo ""
+          echo "─────────────────────────────────────────────────────────────"

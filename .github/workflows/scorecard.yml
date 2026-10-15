@@ -1,0 +1,81 @@
+name: Scorecard supply-chain security
+on:
+  branch_protection_rule:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 6 * * 3'
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      id-token: write
+      contents: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: SARIF file
+          path: results.sarif
+
+      - uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4
+        with:
+          sarif_file: results.sarif
+
+      - name: Update badge JSON
+        if: github.ref == 'refs/heads/master'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import urllib.request
+
+          url = "https://api.scorecard.dev/projects/github.com/masdevid/mt5-quant"
+          with urllib.request.urlopen(url) as resp:
+              data = json.load(resp)
+
+          score = float(data["score"])
+          if score >= 9:
+              color = "brightgreen"
+          elif score >= 7:
+              color = "yellowgreen"
+          elif score >= 5:
+              color = "yellow"
+          else:
+              color = "red"
+
+          badge = {
+              "schemaVersion": 1,
+              "label": "OpenSSF Scorecard",
+              "message": f"{score:g}",
+              "color": color,
+          }
+          with open("badge.json", "w") as f:
+              json.dump(badge, f)
+          print("Wrote badge.json:", badge)
+          PY
+
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git checkout -B badges
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f badge.json
+          git commit -m "chore: update OpenSSF Scorecard badge" || echo "no changes to commit"
+          git push -f origin badges

@@ -1,0 +1,132 @@
+# Changelog
+
+## [1.34.3] — 2026-08-25
+
+- chore(deps): bump dirs from 5.0.1 to 6.0.0 (#6)
+- chore(deps): bump base64 from 0.22.1 to 0.23.1 (#4)
+- chore(deps): bump rusqlite from 0.31.0 to 0.40.2 (#5)
+- ci(release): generate build provenance attestations for artifacts
+- chore(deps): bump the minor-and-patch group across 1 directory with 7 updates (#3)
+- fix(release): drop [skip ci] from server.json PR so required checks can run
+- docs(readme): fix Scorecard badge, add CI, crates.io, and license badges
+- ci(scorecard): rename invalid 'publish' input to 'publish_results' so results are published
+
+
+## [1.34.2] — 2026-08-25
+
+- ci(release): publish to crates.io via trusted publishing (OIDC)
+- fix: resolve clippy lints surfaced by newer toolchain in CI gate
+- fix(release): update server.json via auto-merged PR to satisfy branch ruleset
+- chore(templates): link Discussions from issue chooser
+- chore(templates): add issue forms and PR template
+- ci(security): add OpenSSF Scorecard analysis and badge
+- ci(hardening): least-privilege GITHUB_TOKEN permissions across workflows
+- ci(security): add cargo-deny checks for advisories, licenses, bans, sources
+- ci(security): add dependency review on PRs
+- docs(security): add security policy
+- fix(ci): activate Dependabot for cargo and github-actions ecosystems
+
+
+## [1.34.1] — 2026-08-25
+
+- fix: remove PayPal funding link, bump anyhow for RUSTSEC-2026-0190, resolve all clippy warnings
+- fix: remove unused crossover_server + Path import warnings
+- feat: configurable local agents + CPU pinning for optimization
+
+
+## [1.34.0] — 2026-07-02
+
+- docs: update changelog and tool documentation for rolling backtest
+- feat: add rolling backtest and optimization improvements
+- fix: sync Cargo.lock, remove unused Agents config from optimizer
+- fix: sync Cargo.lock version, remove unused agents config from optimizer
+
+
+## [1.33.0] — 2026-06-25
+
+### Added
+- **`src/utils/` module**: shared `read_file_as_utf8` utility for UTF-16LE BOM detection, used across set file and config handlers.
+- **OS detection and diagnostics**: `utility.rs` gains `OsType` enum, `get_os_context`, `get_system_memory`, and `crossover_server_running` helper for better CrossOver diagnostics.
+- **Wine binary detection**: MT5.app and CrossOver now detect both `wine` and `wine64` binaries; Homebrew and Linux paths add `wine` alongside `wine64`.
+
+### Changed
+- **Optimizer launch mechanism**: rewritten from `/mt5mcp_backtest.ini` + `.bat` to `/config:` INI + shell script. Now patches `terminal.ini` directly with full optimization parameters and appends agent configuration — no longer relies on batch file or separate INI.
+- **Removed unused local agent config**: stripped the `[Agents]` section (4 entries with UUIDs/IPs/ports) from `terminal.ini` output — no local agent processes are used.
+- **OptMode reset**: removed as a separate step; now included inline in `terminal.ini` patching during optimizer startup.
+- **Wine prefix resolution**: changed from 2-parent to 3-parent traversal, matching the backtest pipeline's Wine prefix logic.
+- **Optimizer `/config:` INI**: now includes `Model=4` and `Period=M1` in the test-configuration passed via `/config:` flag (previously hardcoded in the older INI-based approach).
+- **Set file parsing**: parameter delimiter changed from `:` to `=` (matches actual MT5 .set format); `||Y` sweep param parsing rewritten to split on `||` for accurate range extraction.
+- **OptimizationParams**: `model` parameter removed (was hardcoded to `0` everywhere anyway; MT5 now defaults correctly).
+
+### Fixed
+- **Cargo.lock sync**: lockfile version field is now kept in sync with the release process.
+- **Set file cross-platform reading**: `.set` files are now read as UTF-16LE (with BOM) or UTF-8 regardless of platform, fixing potential encoding issues on macOS/Linux.
+- **Read-only set file overwrite**: handles pre-existing read-only files during `.set` write by removing them first.
+
+
+## [1.32.4] — 2026-04-25
+
+### Fixed
+- **HTML report extraction**: `ShutdownTerminal=1` does not cause `terminal64.exe` to exit on Wine/macOS.
+  Inactivity watchdog now waits 30 s for the report file after the tester log goes quiet, then kills
+  MT5 unconditionally — no longer depends on natural process exit.
+- **Duplicate deals**: tester agent log writes each deal twice; deduplicated via `HashSet<deal_number>`
+  in `parse_journal_deals`.
+- **Entry direction inference**: all journal deals were marked `entry="in"` because no direction info
+  exists in the log. Fixed with a per-symbol position tracker (signed lot accumulation) to infer
+  "in" / "out" correctly.
+- **`list_deals` returning 0 results**: `is_closed_trade()` was gating on `profit != 0.0`; journal
+  deals legitimately have zero profit. Removed the profit gate.
+- **Wrong tester log selected**: `Agent-0.0.0.0` logs only contain startup lines, not deal lines.
+  `find_active_tester_agent_log` now prefers `Agent-127.0.0.1` and tiebreaks by file size.
+
+### Added
+- `launch_backtest` exposes `shutdown` (default `true`) and `inactivity_kill_secs` (default: disabled;
+  set to e.g. `120` to enable the inactivity watchdog) as explicit tool parameters.
+- Report DB stores deals in SQLite; all analytics tools resolve by `report_id` / `report_dir` / latest.
+
+### Verified
+- 1-month DPS21/XAUUSD.cent/M5 backtest produces full HTML report: win_rate=70%,
+  profit_factor=0.77, sharpe=-3.61, max_dd=6.93%. All 17 analytics tools return real data.
+
+
+## [1.31.5] — 2026-04-22
+
+- feat: add check_update and update tools with background auto-check
+- release: v1.31.4
+- fix: update all scripts for correctness and consistency
+- release: v1.31.3
+- docs: clean up public repo — remove IDE files, fix stale refs
+- release: v1.31.2
+- refactor: reduce handler boilerplate in analysis and experts modules
+- fix: registryType mcpbPackageType → mcpb
+
+
+## [1.31.4] — 2026-04-22
+
+- fix: update all scripts for correctness and consistency
+- release: v1.31.3
+- docs: clean up public repo — remove IDE files, fix stale refs
+- release: v1.31.2
+- refactor: reduce handler boilerplate in analysis and experts modules
+- fix: registryType mcpbPackageType → mcpb
+
+
+## [1.31.3] — 2026-04-22
+
+- docs: clean up public repo — remove IDE files, fix stale refs
+- release: v1.31.2
+- refactor: reduce handler boilerplate in analysis and experts modules
+- fix: registryType mcpbPackageType → mcpb
+
+
+## [1.31.2] — 2026-04-22
+
+- refactor: reduce handler boilerplate in analysis and experts modules
+- fix: registryType mcpbPackageType → mcpb
+
+
+## [1.31.1] — 2026-04-22
+
+- Minor improvements and bug fixes
+

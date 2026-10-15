@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Reports (generated, not tracked)
+reports/20*/
+reports/*_opt/
+
+# Job metadata
+.mt5mcp_jobs/
+
+# Config (contains local paths)
+config/mt5-quant.yaml
+config/baseline.json
+config/backtest_history.json
+
+# Agent configs (personal LLM instructions)
+CLAUDE.md
+.claude/
+.ocx
+.opencode
+AGENTS.md
+
+# Windsurf (local workflows, not for repo)
+.windsurf/
+
+# VS Code
+.vscode/
+
+# Codegraph
+.codegraph/
+
+# macOS metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Logs
+*.log
+/tmp/mt5opt_*
+
+
+# Added by cargo
+
+/target
+
+
+# Added for MT5-Automation-Labs
+__pycache__/
+*.pyc
+.env
+*.log
+logs/
+.DS_Store
+Thumbs.db
+Desktop.ini
