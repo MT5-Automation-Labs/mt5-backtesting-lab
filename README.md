@@ -218,3 +218,7 @@ cargo fuzz run parse_metrics
 [MIT](LICENSE). Copyright holders accept no liability for trading losses, incorrect analysis, data loss, Wine incompatibilities, or MetaTrader 5 failures.
 
 MetaTrader is a trademark of MetaQuotes Software Corp. You are responsible for the licenses of Wine, CrossOver, and MetaTrader 5, and for the trading rules of your jurisdiction.
+
+## Contact
+
+Telegram: [t.me/teraus111](https://t.me/teraus111)
